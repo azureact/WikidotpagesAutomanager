@@ -29,7 +29,7 @@ chrome_options = Options()
 #chrome_options.add_argument('--headless') #无头浏览器
 chrome_options.add_argument('blink-settings=imagesEnabled=false')
 chrome_options.add_argument('--disable-gpu')
-chrome_options.add_argument('--proxy-server={}'.format('127.0.0.1:25565'))
+#chrome_options.add_argument('--proxy-server={}'.format('127.0.0.1:25565'))
 chrome_options.add_argument('--ignore-certificate-errors')
 chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
 chrome_options.add_experimental_option('excludeSwitches', ['enable-logging'])
@@ -303,7 +303,7 @@ def main():
     print(pending_delete_list)
     generate_announce()
     with open("data.json", "w") as json_file:
-        json.dump({'pending_delete_pages':pending_delete_pages,'pending_deleted_pages_info':js_result,'errors':deviant,'update_timestamp':time.time()}, json_file)
+        json.dump({'pre_deleted_pages':pending_delete_pages,'deleted_pages':js_result,'errors':deviant,'update_timestamp':time.time()}, json_file)
     
 if __name__=='__main__':
     init_driver()
