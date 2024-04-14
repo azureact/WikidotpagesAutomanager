@@ -303,7 +303,7 @@ def main():
     print(pending_delete_list)
     generate_announce()
     with open("data.json", "w") as json_file:
-        json.dump({'pre_deleted_pages':pending_delete_pages,'deleted_pages':js_result,'errors':deviant,'update_timestamp':time.time()}, json_file)
+        json.dump({'pre_delete_pages':pending_delete_pages,'deleted_pages':js_result,'errors':deviant,'update_timestamp':time.time()}, json_file)
     
 if __name__=='__main__':
     init_driver()
