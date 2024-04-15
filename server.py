@@ -3,14 +3,16 @@ import json
 from flask_cors import CORS
 
 app = Flask(__name__)
-CORS(app,  resources={r"/*": {"origins": "*"}})
+CORS(app, resources={r"/*": {"origins": "*"}})
 
-@app.route('/')
+
+@app.route("/")
 def index():
-    with open('data.json', 'r') as file:
+    with open("data.json", "r") as file:
         data = json.load(file)
-    #print(data)
+    # print(data)
     return data
- 
+
+
 if __name__ == "__main__":
-    app.run(debug=True,port=5000)
+    app.run(debug=True, port=5000)
