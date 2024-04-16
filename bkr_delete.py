@@ -14,6 +14,7 @@ import json
 import yaml
 import time
 import traceback
+import requests
 from datetime import datetime
 
 pending_deleted_pages_info: dict[int, list] = {}
@@ -542,9 +543,13 @@ if __name__ == "__main__":
     flag = 0
     while flag < 5:
         try:
-            main()
-            time.sleep(1800)
-            flag = 0
+            response = requests.get(lowest_rated_link)
+            if response.status_code == 200:
+                main()
+                time.sleep(1800)
+                flag = 0
+            else:
+                time.sleep(10)
         except Exception as e:
             flag += 1
             traceback.print_exc()
