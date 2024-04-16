@@ -425,7 +425,7 @@ def check_pending_pages():
             pending_deleted_pages_info[page_id][0] <= -10 and score > -10 and original
         ):  # 24h->72h
             pending_deleted_pages_info[page_id][0] = score
-            record_timestamp=pending_deleted_pages_info[page_id][1]
+            record_timestamp = pending_deleted_pages_info[page_id][1]
             edit_post(
                 pending_deleted_pages_info[page_id][2],
                 pending_deleted_pages_info[page_id][3],
@@ -438,7 +438,7 @@ def check_pending_pages():
             and pending_deleted_pages_info[page_id][1] - announce_time > 86400
         ):  # 72h->24h
             pending_deleted_pages_info[page_id][0] = score
-            record_timestamp=announce_time + 86400 
+            record_timestamp = announce_time + 86400
             edit_post(
                 pending_deleted_pages_info[page_id][2],
                 pending_deleted_pages_info[page_id][3],
