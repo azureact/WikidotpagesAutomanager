@@ -16,6 +16,20 @@ import time
 import traceback
 import requests
 from datetime import datetime
+import logging
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.DEBUG)
+console_handler = logging.StreamHandler()
+file_handler = logging.FileHandler(f"logs/{datetime.now().strftime('%Y-%m-%d')}.txt")
+console_handler.setLevel(logging.INFO)
+file_handler.setLevel(logging.INFO)
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+console_handler.setFormatter(formatter)
+file_handler.setFormatter(formatter)
+logger.addHandler(console_handler)
+logger.addHandler(file_handler)
+pending_deleted_pages_info = {}
 
 pending_deleted_pages_info: dict[int, list] = {}
 with open("deleted_pages.pkl", "rb") as file:
@@ -41,12 +55,14 @@ driver.implicitly_wait(5)
 @retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True, wait=wait_fixed(5))
 def init_driver():
     driver.get("https://www.wikidot.com/default--flow/login__LoginPopupScreen")
+    logger.info(f"正在使用账号 {bot_id} 登录")
     driver.find_element(By.NAME, "login").send_keys(bot_id)
     driver.find_element(By.NAME, "password").send_keys(bot_password)
     driver.find_element(
         By.XPATH,
         "//*[@id='html-body']/div[2]/div[2]/div/div[1]/div[1]/form/div[4]/div/button",
     ).click()
+    logger.info("登录操作完成")
 
 
 def type_check(element: str | None) -> str:
@@ -219,12 +235,10 @@ def add_original_pending_tag():
         driver.get(url + "/norender/true")
         driver.find_element(By.ID, "discuss-button").click()
         discuss = driver.current_url
-        print(discuss)
         driver.get(url + "/norender/true")
         announce_time = time.time()
         score = int(driver.find_element(By.ID, "prw54355").text)
         page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
-        print(page_id)
         if pending_deleted_pages_info.get(page_id) != None:
             del pending_deleted_pages_info[page_id]
         if announce_time - release_time >= 2678400:
@@ -234,6 +248,7 @@ def add_original_pending_tag():
         else:
             continue
         add_tag(" 待删除 ")
+        logger.info(f"添加“待删除”标签：{url}")
         driver.get(discuss)
         if (post := find_post()) == None:
             new_post(
@@ -241,6 +256,7 @@ def add_original_pending_tag():
                 "职员帖：删除宣告",
                 discuss,
             )
+            logger.info(f"在原创页面创建删除宣告帖子：{url}")
         else:
             edit_post(
                 post[0],
@@ -269,11 +285,13 @@ def add_translate_pending_tags():
         if pending_deleted_pages_info.get(page_id) != None:
             del pending_deleted_pages_info[page_id]
         add_tag(" 待删除 ")
+        logger.info(f"添加“待删除”标签：{url}")
         driver.get(discuss)
         if (post := find_post()) == None:
             new_post(
                 translate_delete((announce_time + 86400)), "职员帖：删除宣告", discuss
             )
+            logger.info(f"在翻译页面创建删除宣告帖子：{url}")
         else:
             edit_post(
                 post[0], post[1], translate_delete((announce_time + 86400)), discuss
@@ -316,6 +334,7 @@ def check_pending_pages():
             if "分数回升" in content:
                 driver.get(url + "/norender/true")
                 remove_tag("待删除")
+                logger.info(f"移除“待删除”标签：{url}")
                 continue
             timer_link = type_check(
                 post_box.find_element(By.TAG_NAME, "iframe").get_attribute("src")
@@ -346,7 +365,6 @@ def check_pending_pages():
                     )
                     / 1000
                 )
-            print(record_timestamp)
             try:
                 page_score = int(
                     content[content.find("条目的分数为") + 6 : content.find("分，")]
@@ -385,6 +403,7 @@ def check_pending_pages():
         else:
             driver.get(url + "/norender/true")
             remove_tag("待删除")
+            logger.info(f"移除“待删除”标签：{url}")
             continue
         if (
             (score > -2 and announce_time - release_time < 2678400 and original)
@@ -397,8 +416,10 @@ def check_pending_pages():
                 "【分数回升，倒计时停止】",
                 discuss,
             )
+            logger.info(f"因分数回升，停止倒计时并修改帖子：{url}")
             driver.get(url + "/norender/true")
             remove_tag("待删除")
+            logger.info(f"移除“待删除”标签：{url}")
             del pending_deleted_pages_info[page_id]
         elif (
             pending_deleted_pages_info[page_id][0] <= -10 and score > -10 and original
@@ -473,7 +494,6 @@ def check_pending_deleted_pages_info():
             driver.find_element(By.ID, "more-options-button")
         except NoSuchElementException:
             del pending_deleted_pages_info[i]
-    print(pending_deleted_pages_info)
 
 
 @retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
@@ -526,7 +546,6 @@ def main():
     check_pending_deleted_pages_info()
     with open("deleted_pages.pkl", "wb") as file:
         pickle.dump(pending_deleted_pages_info, file)
-    print(pending_delete_list)
     generate_announce()
     with open("data.json", "w") as json_file:
         json.dump(
