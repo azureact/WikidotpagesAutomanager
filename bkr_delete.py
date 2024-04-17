@@ -68,6 +68,24 @@ def cut(text:str, index1:str, index2:str, offset1:int = 0, offset2:int = 0) -> s
     return text[text.find(index1) + len(index1) + offset1:text.find(index2) + offset2]
 
 
+def get_page_list(num:int)->list:
+    page_list = []  # 整理待删除文章
+    for i in driver.find_element(
+        By.XPATH, f'//*[@id="page-content"]/div[{num}]/table/tbody'
+    ).find_elements(By.TAG_NAME, "tr")[1:]:
+        info = i.find_elements(By.TAG_NAME, "td")
+        page_list.append(
+            [
+                info[0].find_element(By.TAG_NAME, "a").get_attribute("href"),
+                int(
+                    type_check(
+                        info[4].find_element(By.TAG_NAME, "span").get_attribute("class")
+                    )[11:21]
+                ),
+            ]
+        )
+    return page_list
+
 def type_check(element: str | None) -> str:
     if element is None:
         raise TypeError("Failed to get attributes.")
@@ -211,7 +229,7 @@ def remove_tag(tag: str):  # 移除标签
     time.sleep(1.5)
 
 @retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
-def add_original_pending_tag(page):
+def add_original_pending_tag(page:list):
     url, release_time = page
     driver.get(url + "/norender/true")
     driver.find_element(By.ID, "discuss-button").click()
@@ -247,12 +265,7 @@ def add_original_pending_tag(page):
         )
 
 @retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
-def add_translate_pending_tag(page):
-    url = type_check(
-        page.find_elements(By.TAG_NAME, "td")[0]
-        .find_element(By.TAG_NAME, "a")
-        .get_attribute("href")
-    )
+def add_translate_pending_tag(url:str):
     driver.get(url + "/norender/true")
     driver.find_element(By.ID, "discuss-button").click()
     discuss = driver.current_url
@@ -276,7 +289,7 @@ def add_translate_pending_tag(page):
 
 
 @retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
-def check_pending_pages(page):
+def check_pending_pages(page:list):
     url,release_time = page
     driver.get(url + "/norender/true")
     score = int(driver.find_element(By.ID, "prw54355").text)
@@ -477,45 +490,13 @@ def main():
     pending_delete_list = []  # 待检验页面
     pending_delete_pages = []  # 在倒计时中的页面
     driver.get(lowest_rated_link)
-    page_list = []  # 为原创文章添加“待删除”
-    for i in driver.find_element(
-        By.XPATH, '//*[@id="page-content"]/div[1]/table/tbody'
-    ).find_elements(By.TAG_NAME, "tr")[1:]:
-        info = i.find_elements(By.TAG_NAME, "td")
-        page_list.append(
-            [
-                info[0].find_element(By.TAG_NAME, "a").get_attribute("href"),
-                int(
-                    type_check(
-                        info[4].find_element(By.TAG_NAME, "span").get_attribute("class")
-                    )[11:21]
-                ),
-            ]
-        )
-    for page in page_list:
+    for page in get_page_list(1): # 为原创文章添加“待删除”
         add_original_pending_tag(page)
     driver.get(lowest_rated_link)  # 为翻译文章添加“待删除”
-    for page in driver.find_element(
-        By.XPATH, '//*[@id="page-content"]/div[4]/table/tbody'
-    ).find_elements(By.TAG_NAME, "tr")[1:]:
-        add_translate_pending_tag(page)
+    for url,_ in get_page_list(4):
+        add_translate_pending_tag(url)
     driver.get(lowest_rated_link)
-    page_list = []  # 整理待删除文章
-    for i in driver.find_element(
-        By.XPATH, '//*[@id="page-content"]/div[2]/table/tbody'
-    ).find_elements(By.TAG_NAME, "tr")[1:]:
-        info = i.find_elements(By.TAG_NAME, "td")
-        page_list.append(
-            [
-                info[0].find_element(By.TAG_NAME, "a").get_attribute("href"),
-                int(
-                    type_check(
-                        info[4].find_element(By.TAG_NAME, "span").get_attribute("class")
-                    )[11:21]
-                ),
-            ]
-        )
-    for page in page_list:
+    for page in get_page_list(2): # 整理待删除文章
         check_pending_pages(page)
     add_deleted_category()
     check_pending_deleted_pages_info()
