@@ -29,11 +29,10 @@ console_handler.setFormatter(formatter)
 file_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
-pending_deleted_pages_info = {}
 
-pending_deleted_pages_info: dict[int, list] = {}
+
 with open("deleted_pages.pkl", "rb") as file:
-    pending_deleted_pages_info = pickle.load(file)
+    pending_deleted_pages_info: dict[int, list] = pickle.load(file)
 
 with open("config.yaml", "r") as f:
     config: dict = yaml.safe_load(f)
@@ -65,6 +64,10 @@ def init_driver():
     logger.info("登录操作完成")
 
 
+def cut(text:str, index1:str, index2:str, offset1:int = 0, offset2:int = 0) -> str:
+    return text[text.find(index1) + len(index1) + offset1:text.find(index2) + offset2]
+
+
 def type_check(element: str | None) -> str:
     if element is None:
         raise TypeError("Failed to get attributes.")
@@ -72,9 +75,7 @@ def type_check(element: str | None) -> str:
         return element
 
 
-def edit_post(
-    num: int, id: str, content: str, url: str | None = None, times: int = 5
-):  # 编辑帖子
+def edit_post(num: int, id: str, content: str, url: str | None = None, times: int = 5):  # 编辑帖子
     for i in range(times):
         driver.refresh()
         try:
@@ -107,7 +108,7 @@ def edit_post(
                 if (
                     driver.find_element(By.CLASS_NAME, "title modal-header")
                     == "Permission error"
-                    and url != None
+                    and url is not None
                 ):
                     deviant.append(
                         {
@@ -120,7 +121,7 @@ def edit_post(
                     )
                     break
             except:
-                if i == times - 1 and url != None:
+                if i == times - 1 and url is not None:
                     deviant.append(
                         {
                             "page": num,
@@ -151,7 +152,7 @@ def new_post(content: str, title: str, url: str | None = None, times: int = 5):
             )
             break
         except:
-            if i == times - 1 and url != None:
+            if i == times - 1 and url is not None:
                 deviant.append(
                     {"content": content, "url": url, "error_type": "new_post"}
                 )
@@ -190,9 +191,7 @@ def find_post() -> list | None:  # 寻找删除宣告帖
                 return [i, j.get_attribute("id")]
 
 
-@retry(
-    stop=stop_after_attempt(max_attempt_number=3), reraise=True, wait=wait_fixed(0.5)
-)
+@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True, wait=wait_fixed(0.5))
 def add_tag(tag: str):  # 添加标签
     driver.find_element(By.ID, "tags-button").click()
     driver.find_element(By.ID, "page-tags-input").send_keys(tag)
@@ -200,9 +199,7 @@ def add_tag(tag: str):  # 添加标签
     time.sleep(1.5)
 
 
-@retry(
-    stop=stop_after_attempt(max_attempt_number=3), reraise=True, wait=wait_fixed(0.5)
-)
+@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True, wait=wait_fixed(0.5))
 def remove_tag(tag: str):  # 移除标签
     driver.find_element(By.ID, "tags-button").click()
     tags = type_check(
@@ -213,265 +210,205 @@ def remove_tag(tag: str):  # 移除标签
     driver.find_element(By.XPATH, '//*[@id="action-area"]/div[2]/input[3]').click()
     time.sleep(1.5)
 
-
-def add_original_pending_tag():
-    driver.get(lowest_rated_link)
-    page_list = []  # 为原创文章添加“待删除”
-    for i in driver.find_element(
-        By.XPATH, '//*[@id="page-content"]/div[1]/table/tbody'
-    ).find_elements(By.TAG_NAME, "tr")[1:]:
-        info = i.find_elements(By.TAG_NAME, "td")
-        page_list.append(
-            [
-                info[0].find_element(By.TAG_NAME, "a").get_attribute("href"),
-                int(
-                    type_check(
-                        info[4].find_element(By.TAG_NAME, "span").get_attribute("class")
-                    )[11:21]
-                ),
-            ]
+@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
+def add_original_pending_tag(page):
+    url, release_time = page
+    driver.get(url + "/norender/true")
+    driver.find_element(By.ID, "discuss-button").click()
+    discuss = driver.current_url
+    driver.get(url + "/norender/true")
+    announce_time = time.time()
+    score = int(driver.find_element(By.ID, "prw54355").text)
+    page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
+    if pending_deleted_pages_info.get(page_id) is not None:
+        del pending_deleted_pages_info[page_id]
+    if announce_time - release_time >= 2678400:
+        expected_deletion_time = 259200
+    elif score <= -2:
+        expected_deletion_time = 259200 if score > -10 else 86400
+    else:
+        return
+    add_tag(" 待删除 ")
+    logger.info(f"添加“待删除”标签：{url}")
+    driver.get(discuss)
+    if (post := find_post()) == None:
+        new_post(
+            normal_delete(score, announce_time + expected_deletion_time),
+            "职员帖：删除宣告",
+            discuss,
         )
-    for url, release_time in page_list:
-        driver.get(url + "/norender/true")
-        driver.find_element(By.ID, "discuss-button").click()
-        discuss = driver.current_url
-        driver.get(url + "/norender/true")
-        announce_time = time.time()
-        score = int(driver.find_element(By.ID, "prw54355").text)
-        page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
-        if pending_deleted_pages_info.get(page_id) != None:
-            del pending_deleted_pages_info[page_id]
-        if announce_time - release_time >= 2678400:
-            expected_deletion_time = 259200
-        elif score <= -2:
-            expected_deletion_time = 259200 if score > -10 else 86400
-        else:
-            continue
-        add_tag(" 待删除 ")
-        logger.info(f"添加“待删除”标签：{url}")
-        driver.get(discuss)
-        if (post := find_post()) == None:
-            new_post(
-                normal_delete(score, announce_time + expected_deletion_time),
-                "职员帖：删除宣告",
-                discuss,
-            )
-            logger.info(f"在原创页面创建删除宣告帖子：{url}")
-        else:
-            edit_post(
-                post[0],
-                post[1],
-                normal_delete(score, announce_time + expected_deletion_time),
-                discuss,
-            )
-
-
-def add_translate_pending_tags():
-    driver.get(lowest_rated_link)  # 为翻译文章添加“待删除”
-    for i in driver.find_element(
-        By.XPATH, '//*[@id="page-content"]/div[4]/table/tbody'
-    ).find_elements(By.TAG_NAME, "tr")[1:]:
-        url = type_check(
-            i.find_elements(By.TAG_NAME, "td")[0]
-            .find_element(By.TAG_NAME, "a")
-            .get_attribute("href")
+        logger.info(f"在原创页面创建删除宣告帖子：{url}")
+    else:
+        edit_post(
+            post[0],
+            post[1],
+            normal_delete(score, announce_time + expected_deletion_time),
+            discuss,
         )
-        driver.get(url + "/norender/true")
-        driver.find_element(By.ID, "discuss-button").click()
-        discuss = driver.current_url
-        driver.get(url + "/norender/true")
-        announce_time = time.time()
-        page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
-        if pending_deleted_pages_info.get(page_id) != None:
-            del pending_deleted_pages_info[page_id]
-        add_tag(" 待删除 ")
-        logger.info(f"添加“待删除”标签：{url}")
-        driver.get(discuss)
-        if (post := find_post()) == None:
-            new_post(
-                translate_delete((announce_time + 86400)), "职员帖：删除宣告", discuss
-            )
-            logger.info(f"在翻译页面创建删除宣告帖子：{url}")
-        else:
-            edit_post(
-                post[0], post[1], translate_delete((announce_time + 86400)), discuss
-            )
+
+@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
+def add_translate_pending_tag(page):
+    url = type_check(
+        page.find_elements(By.TAG_NAME, "td")[0]
+        .find_element(By.TAG_NAME, "a")
+        .get_attribute("href")
+    )
+    driver.get(url + "/norender/true")
+    driver.find_element(By.ID, "discuss-button").click()
+    discuss = driver.current_url
+    driver.get(url + "/norender/true")
+    announce_time = time.time()
+    page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
+    if pending_deleted_pages_info.get(page_id) is not None:
+        del pending_deleted_pages_info[page_id]
+    add_tag(" 待删除 ")
+    logger.info(f"添加“待删除”标签：{url}")
+    driver.get(discuss)
+    if (post := find_post()) == None:
+        new_post(
+            translate_delete((announce_time + 86400)), "职员帖：删除宣告", discuss
+        )
+        logger.info(f"在翻译页面创建删除宣告帖子：{url}")
+    else:
+        edit_post(
+            post[0], post[1], translate_delete((announce_time + 86400)), discuss
+        )
 
 
 @retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
-def check_pending_pages():
-    driver.get(lowest_rated_link)
-    page_list = []  # 整理待删除文章
-    for i in driver.find_element(
-        By.XPATH, '//*[@id="page-content"]/div[2]/table/tbody'
-    ).find_elements(By.TAG_NAME, "tr")[1:]:
-        info = i.find_elements(By.TAG_NAME, "td")
-        page_list.append(
-            [
-                info[0].find_element(By.TAG_NAME, "a").get_attribute("href"),
-                int(
-                    type_check(
-                        info[4].find_element(By.TAG_NAME, "span").get_attribute("class")
-                    )[11:21]
-                ),
-            ]
+def check_pending_pages(page):
+    url,release_time = page
+    driver.get(url + "/norender/true")
+    score = int(driver.find_element(By.ID, "prw54355").text)
+    title = driver.find_element(By.ID, "page-title").text
+    original = bool(driver.find_elements(By.LINK_TEXT, "原创"))
+    announce_time = time.time()
+    page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
+    driver.find_element(By.ID, "discuss-button").click()
+    discuss = driver.current_url
+    if (post := find_post()) is not None:
+        driver.execute_script(
+            f"WIKIDOT.modules.ForumViewThreadPostsModule.listeners.updateList({post[0]})"
         )
-    for url, release_time in page_list:
-        driver.get(url + "/norender/true")
-        score = int(driver.find_element(By.ID, "prw54355").text)
-        title = driver.find_element(By.ID, "page-title").text
-        original = bool(driver.find_elements(By.LINK_TEXT, "原创"))
-        announce_time = time.time()
-        page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
-        driver.find_element(By.ID, "discuss-button").click()
-        discuss = driver.current_url
-        if (post := find_post()) != None:
-            driver.execute_script(
-                f"WIKIDOT.modules.ForumViewThreadPostsModule.listeners.updateList({post[0]})"
-            )
-            post_box = driver.find_element(By.ID, post[1])
-            content = post_box.find_element(By.CLASS_NAME, "content").text
-            if "分数回升" in content:
-                driver.get(url + "/norender/true")
-                remove_tag("待删除")
-                logger.info(f"移除“待删除”标签：{url}")
-                continue
-            timer_link = type_check(
-                post_box.find_element(By.TAG_NAME, "iframe").get_attribute("src")
-            )
-            if "arandintday.github.io" in timer_link:
-                record_timestamp = (
-                    float(
-                        timer_link[
-                            timer_link.find("?timestamp=")
-                            + 11 : timer_link.find("&type=0")
-                        ]
-                    )
-                    / 1000
-                )
-            elif ".000Z" in timer_link:
-                record_timestamp = datetime.fromisoformat(
-                    timer_link[
-                        timer_link.find("/timer/time=") + 12 : timer_link.find(".000Z")
-                    ]
-                ).timestamp()
-            else:
-                record_timestamp = (
-                    float(
-                        timer_link[
-                            timer_link.find("/timer/time=")
-                            + 12 : timer_link.find("/type=")
-                        ]
-                    )
-                    / 1000
-                )
-            try:
-                page_score = int(
-                    content[content.find("条目的分数为") + 6 : content.find("分，")]
-                )
-            except ValueError:
-                if original:
-                    record_timestamp = announce_time + 259200
-                    edit_post(
-                        post[0],
-                        post[1],
-                        normal_delete(score, record_timestamp),
-                        discuss,
-                    )
-                    page_score = -2
-                else:
-                    page_score = (
-                        score
-                        if pending_deleted_pages_info.get(page_id) == None
-                        else pending_deleted_pages_info[page_id][0]
-                    )
-            if page_score <= -10 and record_timestamp < announce_time + 259200:
-                basic_timestamp = (
-                    pending_deleted_pages_info[page_id][1]
-                    if pending_deleted_pages_info.get(page_id) != None
-                    else record_timestamp + 172800
-                )
-            else:
-                basic_timestamp = record_timestamp
-            pending_deleted_pages_info[page_id] = [
-                page_score,
-                basic_timestamp,
-                post[0],
-                post[1],
-                url,
-            ]
+        post_box = driver.find_element(By.ID, post[1])
+        content = post_box.find_element(By.CLASS_NAME, "content").text
+        if "分数回升" in content:
+            driver.get(url + "/norender/true")
+            remove_tag("待删除")
+            logger.info(f"移除“待删除”标签：{url}")
+            return
+        timer_link = type_check(
+            post_box.find_element(By.TAG_NAME, "iframe").get_attribute("src")
+        )
+        if "arandintday.github.io" in timer_link:
+            record_timestamp = float(cut(timer_link,"?timestamp=","&type=0"))/ 1000
+        elif ".000Z" in timer_link:
+            record_timestamp = datetime.fromisoformat(cut(timer_link,"/timer/time=",".000Z")).timestamp()
         else:
-            driver.get(url + "/norender/true")
-            remove_tag("待删除")
-            logger.info(f"移除“待删除”标签：{url}")
-            continue
-        if (
-            (score > -2 and announce_time - release_time < 2678400 and original)
-            or score >= 5
-            or (not original and score >= 0)
-        ):  # 取消删除
-            edit_post(
-                pending_deleted_pages_info[page_id][2],
-                pending_deleted_pages_info[page_id][3],
-                "【分数回升，倒计时停止】",
-                discuss,
+            record_timestamp = float(cut(timer_link,"/timer/time=","/type="))/ 1000
+        try:
+            page_score = int(cut(content, "条目的分数为"))
+        except ValueError:
+            if original:
+                record_timestamp = announce_time + 259200
+                edit_post(
+                    post[0],
+                    post[1],
+                    normal_delete(score, record_timestamp),
+                    discuss,
+                )
+                page_score = -2
+            else:
+                page_score = (
+                    score
+                    if pending_deleted_pages_info.get(page_id) == None
+                    else pending_deleted_pages_info[page_id][0]
+                )
+        if page_score <= -10 and record_timestamp < announce_time + 259200:
+            basic_timestamp = (
+                pending_deleted_pages_info[page_id][1]
+                if pending_deleted_pages_info.get(page_id) is not None
+                else record_timestamp + 172800
             )
-            logger.info(f"因分数回升，停止倒计时并修改帖子：{url}")
-            driver.get(url + "/norender/true")
-            remove_tag("待删除")
-            logger.info(f"移除“待删除”标签：{url}")
-            del pending_deleted_pages_info[page_id]
-        elif (
-            pending_deleted_pages_info[page_id][0] <= -10 and score > -10 and original
-        ):  # 24h->72h
-            pending_deleted_pages_info[page_id][0] = score
-            record_timestamp = pending_deleted_pages_info[page_id][1]
-            edit_post(
-                pending_deleted_pages_info[page_id][2],
-                pending_deleted_pages_info[page_id][3],
-                normal_delete(score, record_timestamp),
-                discuss,
-            )
-        elif (
-            score <= -10
-            and pending_deleted_pages_info[page_id][0] > -10
-            and pending_deleted_pages_info[page_id][1] - announce_time > 86400
-        ):  # 72h->24h
-            pending_deleted_pages_info[page_id][0] = score
-            record_timestamp = announce_time + 86400
-            edit_post(
-                pending_deleted_pages_info[page_id][2],
-                pending_deleted_pages_info[page_id][3],
-                normal_delete(score, record_timestamp),
-                discuss,
-            )
-        if announce_time >= record_timestamp:
-            pending_delete_list.append(
-                [
-                    url,
-                    pending_deleted_pages_info[page_id][0],
-                    "normal" if original else "translate",
-                ]
-            )  # 加入pending_delete_list
-        elif pending_deleted_pages_info.get(page_id) != None:
-            pending_delete_pages.append(
-                {
-                    "link": url,
-                    "title": title,
-                    "score": score,
-                    "release_score": page_score,
-                    "time": 72 if page_score > -10 else 24,
-                    "discuss_link": discuss,
-                    "post_page": post[0],
-                    "post_id": post[1],
-                    "isOriginal": original,
-                    "timestamp": record_timestamp,
-                }
-            )
-        if score <= -30:
-            pending_delete_list.append(
-                [url, pending_deleted_pages_info[page_id][0], "minusThirty"]
-            )
+        else:
+            basic_timestamp = record_timestamp
+        pending_deleted_pages_info[page_id] = [
+            page_score,
+            basic_timestamp,
+            post[0],
+            post[1],
+            url,
+        ]
+    else:
+        driver.get(url + "/norender/true")
+        remove_tag("待删除")
+        logger.info(f"移除“待删除”标签：{url}")
+        return
+    if (
+        (score > -2 and announce_time - release_time < 2678400 and original)
+        or score >= 5
+        or (not original and score >= 0)
+    ):  # 取消删除
+        edit_post(
+            pending_deleted_pages_info[page_id][2],
+            pending_deleted_pages_info[page_id][3],
+            "【分数回升，倒计时停止】",
+            discuss,
+        )
+        logger.info(f"因分数回升，停止倒计时并修改帖子：{url}")
+        driver.get(url + "/norender/true")
+        remove_tag("待删除")
+        logger.info(f"移除“待删除”标签：{url}")
+        del pending_deleted_pages_info[page_id]
+    elif (
+        pending_deleted_pages_info[page_id][0] <= -10 and score > -10 and original
+    ):  # 24h->72h
+        pending_deleted_pages_info[page_id][0] = score
+        edit_post(
+            pending_deleted_pages_info[page_id][2],
+            pending_deleted_pages_info[page_id][3],
+            normal_delete(score, record_timestamp := pending_deleted_pages_info[page_id][1]),
+            discuss,
+        )
+    elif (
+        score <= -10
+        and pending_deleted_pages_info[page_id][0] > -10
+        and pending_deleted_pages_info[page_id][1] - announce_time > 86400
+    ):  # 72h->24h
+        pending_deleted_pages_info[page_id][0] = score
+        edit_post(
+            pending_deleted_pages_info[page_id][2],
+            pending_deleted_pages_info[page_id][3],
+            normal_delete(score, record_timestamp := announce_time + 86400),
+            discuss,
+        )
+    if announce_time >= record_timestamp:
+        pending_delete_list.append(
+            [
+                url,
+                pending_deleted_pages_info[page_id][0],
+                "normal" if original else "translate",
+            ]
+        )  # 加入pending_delete_list
+    elif pending_deleted_pages_info.get(page_id) is not None:
+        pending_delete_pages.append(
+            {
+                "link": url,
+                "title": title,
+                "score": score,
+                "release_score": page_score,
+                "time": 72 if page_score > -10 else 24,
+                "discuss_link": discuss,
+                "post_page": post[0],
+                "post_id": post[1],
+                "isOriginal": original,
+                "timestamp": record_timestamp,
+            }
+        )
+    if score <= -30:
+        pending_delete_list.append(
+            [url, pending_deleted_pages_info[page_id][0], "minusThirty"]
+        )
 
 
 def add_deleted_category():
@@ -497,40 +434,40 @@ def check_pending_deleted_pages_info():
 
 
 @retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
-def generate_announce():
-    for url, release_score, page_type in pending_delete_list:  # 检验删除宣告
-        index = -1
-        for j, value in enumerate(js_result):
-            if value["link"] == url:
-                index = j
-                break
-        if index == -1:
-            driver.get(url + "/norender/true")
-            title = driver.find_element(By.ID, "page-title").text
-            score = int(driver.find_element(By.ID, "prw54355").text)
-            driver.find_element(By.ID, "more-options-button").click()
-            driver.find_element(By.ID, "view-source-button").click()
-            WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "page-source"))
-            )
-            context = driver.find_element(By.CLASS_NAME, "page-source").text
-            js_result.append(
-                {
-                    "link": url,
-                    "title": title,
-                    "score": score,
-                    "release_score": release_score,
-                    "time": (
-                        24 if release_score <= -10 or page_type == "translate" else 72
-                    ),
-                    "context": context,
-                    "page_type": [page_type],
-                }
-            )
-        else:
-            if page_type == "normal":
-                js_result[index]["release_score"] = release_score
-            js_result[index]["page_type"] += [page_type]
+def generate_announce(page):
+    url, release_score, page_type  = page
+    index = -1
+    for j, value in enumerate(js_result):
+        if value["link"] == url:
+            index = j
+            break
+    if index == -1:
+        driver.get(url + "/norender/true")
+        title = driver.find_element(By.ID, "page-title").text
+        score = int(driver.find_element(By.ID, "prw54355").text)
+        driver.find_element(By.ID, "more-options-button").click()
+        driver.find_element(By.ID, "view-source-button").click()
+        WebDriverWait(driver, 5).until(
+            EC.presence_of_element_located((By.CLASS_NAME, "page-source"))
+        )
+        context = driver.find_element(By.CLASS_NAME, "page-source").text
+        js_result.append(
+            {
+                "link": url,
+                "title": title,
+                "score": score,
+                "release_score": release_score,
+                "time": (
+                    24 if release_score <= -10 or page_type == "translate" else 72
+                ),
+                "context": context,
+                "page_type": [page_type],
+            }
+        )
+    else:
+        if page_type == "normal":
+            js_result[index]["release_score"] = release_score
+        js_result[index]["page_type"] += [page_type]
 
 
 def main():
@@ -539,14 +476,53 @@ def main():
     js_result = []  # 自删页面，低分翻译页面-30，以下页面，-30~+5页面相关信息
     pending_delete_list = []  # 待检验页面
     pending_delete_pages = []  # 在倒计时中的页面
-    add_original_pending_tag()
-    add_translate_pending_tags()
-    check_pending_pages()
+    driver.get(lowest_rated_link)
+    page_list = []  # 为原创文章添加“待删除”
+    for i in driver.find_element(
+        By.XPATH, '//*[@id="page-content"]/div[1]/table/tbody'
+    ).find_elements(By.TAG_NAME, "tr")[1:]:
+        info = i.find_elements(By.TAG_NAME, "td")
+        page_list.append(
+            [
+                info[0].find_element(By.TAG_NAME, "a").get_attribute("href"),
+                int(
+                    type_check(
+                        info[4].find_element(By.TAG_NAME, "span").get_attribute("class")
+                    )[11:21]
+                ),
+            ]
+        )
+    for page in page_list:
+        add_original_pending_tag(page)
+    driver.get(lowest_rated_link)  # 为翻译文章添加“待删除”
+    for page in driver.find_element(
+        By.XPATH, '//*[@id="page-content"]/div[4]/table/tbody'
+    ).find_elements(By.TAG_NAME, "tr")[1:]:
+        add_translate_pending_tag(page)
+    driver.get(lowest_rated_link)
+    page_list = []  # 整理待删除文章
+    for i in driver.find_element(
+        By.XPATH, '//*[@id="page-content"]/div[2]/table/tbody'
+    ).find_elements(By.TAG_NAME, "tr")[1:]:
+        info = i.find_elements(By.TAG_NAME, "td")
+        page_list.append(
+            [
+                info[0].find_element(By.TAG_NAME, "a").get_attribute("href"),
+                int(
+                    type_check(
+                        info[4].find_element(By.TAG_NAME, "span").get_attribute("class")
+                    )[11:21]
+                ),
+            ]
+        )
+    for page in page_list:
+        check_pending_pages(page)
     add_deleted_category()
     check_pending_deleted_pages_info()
     with open("deleted_pages.pkl", "wb") as file:
         pickle.dump(pending_deleted_pages_info, file)
-    generate_announce()
+    for page in pending_delete_list:  # 检验删除宣告
+        generate_announce(page)
     with open("data.json", "w") as json_file:
         json.dump(
             {
