@@ -42,7 +42,7 @@ lowest_rated_link, bot_id, bot_password = config.values()
 
 # 浏览器初始化
 chrome_options = Options()
-chrome_options.add_argument('--headless') #无头浏览器
+# chrome_options.add_argument('--headless') #无头浏览器
 chrome_options.add_argument("blink-settings=imagesEnabled=false")
 chrome_options.add_argument("--disable-gpu")
 # chrome_options.add_argument('--proxy-server={}'.format('127.0.0.1:25565'))
@@ -228,7 +228,7 @@ def find_post() -> list | None:  # 寻找删除宣告帖
     logger.info('未找到删除宣告帖')
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True, wait=wait_fixed(0.5))
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, wait=wait_fixed(0.5))
 def add_tag(tag: str):  # 添加标签
     logger.info(f'发起尝试添加{tag}标签')
     driver.find_element(By.ID, "tags-button").click()
@@ -238,7 +238,7 @@ def add_tag(tag: str):  # 添加标签
     time.sleep(1.5)
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True, wait=wait_fixed(0.5))
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, wait=wait_fixed(0.5))
 def remove_tag(tag: str):  # 移除标签
     logger.info(f'发起尝试移除{tag}标签')
     driver.find_element(By.ID, "tags-button").click()
@@ -251,14 +251,14 @@ def remove_tag(tag: str):  # 移除标签
     logger.info('标签移除完成')
     time.sleep(1.5)
 
-@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
 def add_original_pending_tag(page:list):
     url, release_time = page
     logger.info(f'访问页面{url}')
     driver.get(url + "/norender/true")
     driver.find_element(By.ID, "discuss-button").click()
     discuss = driver.current_url
-    logger.debug(f'获取讨论串链接{url}')
+    logger.debug(f'获取讨论区链接{discuss}')
     driver.get(url + "/norender/true")
     announce_time = time.time()
     score = int(driver.find_element(By.ID, "prw54355").text)
@@ -290,13 +290,13 @@ def add_original_pending_tag(page:list):
             discuss,
         )
 
-@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
 def add_translate_pending_tag(url:str):
     driver.get(url + "/norender/true")
     logger.info(f'访问页面{url}')
     driver.find_element(By.ID, "discuss-button").click()
     discuss = driver.current_url
-    logger.debug(f'获取讨论串链接{url}')
+    logger.debug(f'获取讨论区链接{discuss}')
     driver.get(url + "/norender/true")
     announce_time = time.time()
     page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
@@ -316,10 +316,11 @@ def add_translate_pending_tag(url:str):
         )
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
 def check_pending_pages(page:list):
     url,release_time = page
     driver.get(url + "/norender/true")
+    logger.info(f'访问{url}')
     score = int(driver.find_element(By.ID, "prw54355").text)
     title = driver.find_element(By.ID, "page-title").text
     original = bool(driver.find_elements(By.LINK_TEXT, "原创"))
@@ -327,6 +328,7 @@ def check_pending_pages(page:list):
     page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
     driver.find_element(By.ID, "discuss-button").click()
     discuss = driver.current_url
+    logger.debug(f'获取讨论区链接{discuss}')
     if (post := find_post()) is not None:
         driver.execute_script(
             f"WIKIDOT.modules.ForumViewThreadPostsModule.listeners.updateList({post[0]})"
@@ -336,7 +338,7 @@ def check_pending_pages(page:list):
         if "分数回升" in content:
             driver.get(url + "/norender/true")
             remove_tag("待删除")
-            logger.info(f"移除“待删除”标签：{url}")
+            logger.info("检测到删除宣告内容为分数回升，跳过页面")
             return
         timer_link = type_check(
             post_box.find_element(By.TAG_NAME, "iframe").get_attribute("src")
@@ -347,10 +349,14 @@ def check_pending_pages(page:list):
             record_timestamp = datetime.fromisoformat(cut(timer_link,"/timer/time=",".000Z")).timestamp()
         else:
             record_timestamp = float(cut(timer_link,"/timer/time=","/type="))/ 1000
+        logger.debug(f'删除宣告时间戳为{record_timestamp}')
         try:
             page_score = int(cut(content, "条目的分数为","分，"))
+            logger.debug('检测到删除宣告为原创文章')
         except ValueError:
+            logger.debug('检测到删除宣告为翻译文章')
             if original:
+                logger.info('文章为原创文章但使用翻译文章的删除宣告，准备重置删除宣告')
                 record_timestamp = announce_time + 259200
                 edit_post(
                     post[0],
@@ -380,9 +386,11 @@ def check_pending_pages(page:list):
             post[1],
             url,
         ]
+        logger.info(f'{url}的页面信息保存完成')
     else:
         driver.get(url + "/norender/true")
         remove_tag("待删除")
+        logger.info('跳过页面')
         return
     if (
         (score > -2 and announce_time - release_time < 2678400 and original)
@@ -395,13 +403,14 @@ def check_pending_pages(page:list):
             "【分数回升，倒计时停止】",
             discuss,
         )
-        logger.info(f"因分数回升，停止倒计时并修改帖子：{url}")
         driver.get(url + "/norender/true")
         remove_tag("待删除")
         del pending_deleted_pages_info[page_id]
+        logger.info('文章分数回升，取消删除并删除页面信息')
     elif (
         pending_deleted_pages_info[page_id][0] <= -10 and score > -10 and original
     ):  # 24h->72h
+        logger.info(f'将文章{url}的删除宣告倒计时从24小时修改为72小时，当前分数为{score}')
         pending_deleted_pages_info[page_id][0] = score
         edit_post(
             pending_deleted_pages_info[page_id][2],
@@ -414,6 +423,7 @@ def check_pending_pages(page:list):
         and pending_deleted_pages_info[page_id][0] > -10
         and pending_deleted_pages_info[page_id][1] - announce_time > 86400
     ):  # 72h->24h
+        logger.info(f'将文章{url}的删除宣告倒计时从72小时修改为24小时，当前分数为{score}')
         pending_deleted_pages_info[page_id][0] = score
         edit_post(
             pending_deleted_pages_info[page_id][2],
@@ -422,6 +432,7 @@ def check_pending_pages(page:list):
             discuss,
         )
     if announce_time >= record_timestamp:
+        logger.info('倒计时到期，加入生成删除宣告列表')
         pending_delete_list.append(
             [
                 url,
@@ -430,6 +441,7 @@ def check_pending_pages(page:list):
             ]
         )  # 加入pending_delete_list
     elif pending_deleted_pages_info.get(page_id) is not None:
+        logger.info('倒计时未到期，加入等待倒计时文章列表')
         pending_delete_pages.append(
             {
                 "link": url,
@@ -445,11 +457,12 @@ def check_pending_pages(page:list):
             }
         )
     if score <= -30:
+        logger.info('文章已处于-30分以下，加入生成删除宣告列表')
         pending_delete_list.append(
             [url, pending_deleted_pages_info[page_id][0], "minusThirty"]
         )
 
-
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
 def add_deleted_category():
     driver.get(lowest_rated_link)
     for i in driver.find_element(
@@ -460,7 +473,7 @@ def add_deleted_category():
         score = int(info[1].find_element(By.TAG_NAME, "span").text)
         pending_delete_list.append([url, score, "deleted"])
 
-
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
 def check_pending_deleted_pages_info():
     for i in list(
         pending_deleted_pages_info.keys()
@@ -474,7 +487,7 @@ def check_pending_deleted_pages_info():
             del pending_deleted_pages_info[i]
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
 def generate_announce(page):
     url, release_score, page_type  = page
     index = -1
