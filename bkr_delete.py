@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-from tenacity import retry, stop_after_attempt, wait_fixed
+from tenacity import retry, stop_after_attempt, wait_fixed, after_log
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.common.exceptions import NoSuchElementException
@@ -202,7 +202,7 @@ def normal_delete(score: int, timer: float) -> str:  # 简写正常删除文字
     如果你不是作者又想要重写该条目，请在此帖回复申请。请先取得作者的同意，并将原文的源代码复制至沙盒里。除非你是工作人员，否则请勿就申请重写以外的范围回复此帖。"""
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=3), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def find_post() -> list | None:  # 寻找删除宣告帖
     logger.debug('尝试寻找删除宣告帖')
     driver.refresh()
@@ -228,7 +228,7 @@ def find_post() -> list | None:  # 寻找删除宣告帖
     logger.info('未找到删除宣告帖')
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, wait=wait_fixed(0.5))
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, wait=wait_fixed(0.5), after=after_log(logger, log_level=logging.WARNING))
 def add_tag(tag: str):  # 添加标签
     logger.info(f'发起尝试添加{tag}标签')
     driver.find_element(By.ID, "tags-button").click()
@@ -238,7 +238,7 @@ def add_tag(tag: str):  # 添加标签
     time.sleep(1.5)
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, wait=wait_fixed(0.5))
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, wait=wait_fixed(0.5), after=after_log(logger, log_level=logging.WARNING))
 def remove_tag(tag: str):  # 移除标签
     logger.info(f'发起尝试移除{tag}标签')
     driver.find_element(By.ID, "tags-button").click()
@@ -251,7 +251,7 @@ def remove_tag(tag: str):  # 移除标签
     logger.info('标签移除完成')
     time.sleep(1.5)
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def add_original_pending_tag(page:list):
     url, release_time = page
     logger.info(f'访问页面{url}')
@@ -290,7 +290,7 @@ def add_original_pending_tag(page:list):
             discuss,
         )
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def add_translate_pending_tag(url:str):
     driver.get(url + "/norender/true")
     logger.info(f'访问页面{url}')
@@ -316,7 +316,7 @@ def add_translate_pending_tag(url:str):
         )
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def check_pending_pages(page:list):
     url,release_time = page
     driver.get(url + "/norender/true")
@@ -462,7 +462,7 @@ def check_pending_pages(page:list):
             [url, pending_deleted_pages_info[page_id][0], "minusThirty"]
         )
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def add_deleted_category():
     driver.get(lowest_rated_link)
     for i in driver.find_element(
@@ -473,7 +473,7 @@ def add_deleted_category():
         score = int(info[1].find_element(By.TAG_NAME, "span").text)
         pending_delete_list.append([url, score, "deleted"])
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def check_pending_deleted_pages_info():
     for i in list(
         pending_deleted_pages_info.keys()
@@ -487,7 +487,7 @@ def check_pending_deleted_pages_info():
             del pending_deleted_pages_info[i]
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True)
+@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def generate_announce(page):
     url, release_score, page_type  = page
     index = -1
