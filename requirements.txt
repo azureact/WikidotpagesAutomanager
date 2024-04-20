@@ -1,0 +1,6 @@
+selenium
+tenacity
+pyperclip
+pickle
+PyYAML
+requests
