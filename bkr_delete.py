@@ -256,10 +256,6 @@ def add_original_pending_tag(page:list):
     url, release_time = page
     logger.info(f'访问页面{url}')
     driver.get(url + "/norender/true")
-    driver.find_element(By.ID, "discuss-button").click()
-    discuss = driver.current_url
-    logger.debug(f'获取讨论区链接{discuss}')
-    driver.get(url + "/norender/true")
     announce_time = time.time()
     score = int(driver.find_element(By.ID, "prw54355").text)
     page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
@@ -273,6 +269,11 @@ def add_original_pending_tag(page:list):
     else:
         logger.info('页面分数不满足删除条件，跳过此页面')
         return
+    if (discuss := driver.find_element(By.ID, "discuss-button").get_attribute('href')) is None:
+        driver.find_element(By.ID, "discuss-button").click()
+        discuss = driver.current_url
+        driver.get(url + "/norender/true")
+    logger.debug(f'获取讨论区链接{discuss}')
     add_tag(" 待删除 ")
     driver.get(discuss)
     logger.info('前往讨论区发布删除宣告')
@@ -294,10 +295,11 @@ def add_original_pending_tag(page:list):
 def add_translate_pending_tag(url:str):
     driver.get(url + "/norender/true")
     logger.info(f'访问页面{url}')
-    driver.find_element(By.ID, "discuss-button").click()
-    discuss = driver.current_url
+    if (discuss := driver.find_element(By.ID, "discuss-button").get_attribute('href')) is None:
+        driver.find_element(By.ID, "discuss-button").click()
+        discuss = driver.current_url
+        driver.get(url + "/norender/true")
     logger.debug(f'获取讨论区链接{discuss}')
-    driver.get(url + "/norender/true")
     announce_time = time.time()
     page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
     if pending_deleted_pages_info.get(page_id) is not None:
