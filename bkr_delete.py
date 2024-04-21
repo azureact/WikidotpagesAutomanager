@@ -97,7 +97,7 @@ def type_check(element: str | None) -> str:
         return element
 
 
-def edit_post(num: int, id: str, content: str, url: str | None = None, times: int = 5):  # 编辑帖子
+def edit_post(num: int, id: str, content: str, url: str | None = None, times: int = 5) -> bool:  # 编辑帖子
     logger.info(f'准备编辑{url + "中" if url is not None else ""}第{num}页，id为{id}帖子')
     for i in range(times):
         driver.refresh()
@@ -122,7 +122,7 @@ def edit_post(num: int, id: str, content: str, url: str | None = None, times: in
                 EC.presence_of_element_located((By.ID, "np-post"))
             )
             logger.info(f'第{num}页，id为{id}帖子编辑完成')
-            break
+            return True
         except:
             logger.warning(f'第{i+1}/{times}次编辑帖子失败')
             try:
@@ -146,7 +146,7 @@ def edit_post(num: int, id: str, content: str, url: str | None = None, times: in
                         }
                     )
                     logger.error(f'编辑第{num}页，id为{id}帖子时遇到权限错误，中断重试')
-                    break
+                    return False
             except:
                 if i == times - 1 and url is not None:
                     deviant.append(
@@ -159,9 +159,10 @@ def edit_post(num: int, id: str, content: str, url: str | None = None, times: in
                         }
                     )
                     logger.error(f'编辑第{num}页，id为{id}帖子时遇到未知错误，放弃重试')
+    return False
 
 
-def new_post(content: str, title: str, url: str | None = None, times: int = 5):
+def new_post(content: str, title: str, url: str | None = None, times: int = 5) -> bool:
     logger.info(f'准备{"在"+ url + "中" if url is not None else ""}新建帖子')
     for i in range(times):
         driver.refresh()
@@ -179,7 +180,7 @@ def new_post(content: str, title: str, url: str | None = None, times: int = 5):
                 EC.presence_of_element_located((By.ID, "np-post"))
             )
             logger.info('帖子新建完成')
-            break
+            return True
         except:
             logger.warning(f'第{i+1}/{times}次新建帖子失败')
             if i == times - 1 and url is not None:
@@ -187,6 +188,7 @@ def new_post(content: str, title: str, url: str | None = None, times: int = 5):
                     {"content": content, "url": url, "error_type": "new_post"}
                 )
                 logger.error(f'新建帖子时遇到未知错误，放弃重试')
+    return False
 
 
 def translate_delete(timer: float) -> str:  # 简写翻译删除文字
@@ -270,54 +272,53 @@ def add_original_pending_tag(page:list):
     else:
         logger.info('页面分数不满足删除条件，跳过此页面')
         return
-    if (discuss := driver.find_element(By.ID, "discuss-button").get_attribute('href')) is None:
-        driver.find_element(By.ID, "discuss-button").click()
-        discuss = driver.current_url
-        driver.get(url + "/norender/true")
+    driver.find_element(By.ID, "discuss-button").click()
+    discuss = driver.current_url
     logger.debug(f'获取讨论区链接{discuss}')
-    add_tag(" 待删除 ")
-    driver.get(discuss)
     logger.info('前往讨论区发布删除宣告')
-    if (post := find_post()) == None:
-        new_post(
+    flag = False
+    if (post := find_post()) is None:
+        flag = new_post(
             normal_delete(score, announce_time + expected_deletion_time),
             "职员帖：删除宣告",
             discuss,
         )
     else:
-        edit_post(
+        flag = edit_post(
             post[0],
             post[1],
             normal_delete(score, announce_time + expected_deletion_time),
             discuss,
         )
+    if flag:
+        driver.get(url + "/norender/true")
+        add_tag(" 待删除 ")
 
 @retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def add_translate_pending_tag(url:str):
     driver.get(url + "/norender/true")
     logger.info(f'访问页面{url}')
-    if (discuss := driver.find_element(By.ID, "discuss-button").get_attribute('href')) is None:
-        driver.find_element(By.ID, "discuss-button").click()
-        discuss = driver.current_url
-        driver.get(url + "/norender/true")
-    logger.debug(f'获取讨论区链接{discuss}')
     announce_time = time.time()
     page_id = driver.execute_script("return WIKIREQUEST.info.pageId;")
     if pending_deleted_pages_info.get(page_id) is not None:
         logger.info('移除pending_deleted_pages_info中的残余数据')
         del pending_deleted_pages_info[page_id]
-    add_tag(" 待删除 ")
-    driver.get(discuss)
+    driver.find_element(By.ID, "discuss-button").click()
+    discuss = driver.current_url
+    logger.debug(f'获取讨论区链接{discuss}')
     logger.info('前往讨论区发布删除宣告')
-    if (post := find_post()) == None:
-        new_post(
+    flag = False
+    if (post := find_post()) is None:
+        flag = new_post(
             translate_delete((announce_time + 86400)), "职员帖：删除宣告", discuss
         )
     else:
-        edit_post(
+        flag = edit_post(
             post[0], post[1], translate_delete((announce_time + 86400)), discuss
         )
-
+    if flag:
+        driver.get(url + "/norender/true")
+        add_tag(" 待删除 ")
 
 @retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
 def check_pending_pages(page:list):
@@ -371,7 +372,7 @@ def check_pending_pages(page:list):
             else:
                 page_score = (
                     score
-                    if pending_deleted_pages_info.get(page_id) == None
+                    if pending_deleted_pages_info.get(page_id) is None
                     else pending_deleted_pages_info[page_id][0]
                 )
         if page_score <= -10 and record_timestamp < announce_time + 259200:
