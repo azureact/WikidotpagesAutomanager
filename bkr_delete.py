@@ -220,7 +220,9 @@ def find_post() -> list | None:  # 寻找删除宣告帖
         driver.execute_script(
             f"WIKIDOT.modules.ForumViewThreadPostsModule.listeners.updateList({i})"
         )
-        time.sleep(0.5)
+        WebDriverWait(driver, 3).until(
+                EC.presence_of_element_located((By.CLASS_NAME, "post"))
+            )
         logger.info(f'在第{i}页寻找删除宣告帖')
         for j in driver.find_elements(By.CLASS_NAME, "post"):
             title = j.find_element(By.CLASS_NAME, "title").text
@@ -337,6 +339,9 @@ def check_pending_pages(page:list):
         driver.execute_script(
             f"WIKIDOT.modules.ForumViewThreadPostsModule.listeners.updateList({post[0]})"
         )
+        WebDriverWait(driver, 3).until(
+                EC.presence_of_element_located((By.ID, post[1]))
+            )
         post_box = driver.find_element(By.ID, post[1])
         content = post_box.find_element(By.CLASS_NAME, "content").text
         if "分数回升" in content:
