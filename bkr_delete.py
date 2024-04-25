@@ -204,33 +204,36 @@ def normal_delete(score: int, timer: float) -> str:  # 简写正常删除文字
     如果你不是作者又想要重写该条目，请在此帖回复申请。请先取得作者的同意，并将原文的源代码复制至沙盒里。除非你是工作人员，否则请勿就申请重写以外的范围回复此帖。"""
 
 
-@retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, after=after_log(logger, log_level=logging.WARNING))
-def find_post() -> list | None:  # 寻找删除宣告帖
-    logger.debug('尝试寻找删除宣告帖')
-    driver.refresh()
-    try:
-        logger.debug('获取页码数量')
-        num = range(
-            1, int(driver.find_element(By.CLASS_NAME, "pager-no").text[10:]) + 1
-        )
-    except NoSuchElementException:
-        logger.debug('页码数量检测到为1')
-        num = range(1, 2)
-    for i in num:
-        driver.execute_script(
-            f"WIKIDOT.modules.ForumViewThreadPostsModule.listeners.updateList({i})"
-        )
-        WebDriverWait(driver, 3).until(
-                EC.presence_of_element_located((By.CLASS_NAME, "post"))
-            )
-        logger.info(f'在第{i}页寻找删除宣告帖')
-        for j in driver.find_elements(By.CLASS_NAME, "post"):
-            title = j.find_element(By.CLASS_NAME, "title").text
-            id=j.get_attribute("id")
-            if "职员" in title and "删除宣告" in title:
-                logger.info(f'在第{i}页找到删除宣告，id为{id}')
-                return [i, id]
-    logger.info('未找到删除宣告帖')
+def find_post(times:int=3) -> list | None:  # 寻找删除宣告帖
+    for i in range(times):
+        try:
+            logger.debug('尝试寻找删除宣告帖')
+            driver.refresh()
+            try:
+                logger.debug('获取页码数量')
+                num = range(
+                    1, int(driver.find_element(By.CLASS_NAME, "pager-no").text[10:]) + 1
+                )
+            except NoSuchElementException:
+                logger.debug('页码数量检测到为1')
+                num = range(1, 2)
+            for i in num:
+                driver.execute_script(
+                    f"WIKIDOT.modules.ForumViewThreadPostsModule.listeners.updateList({i})"
+                )
+                WebDriverWait(driver, 3).until(
+                        EC.presence_of_element_located((By.CLASS_NAME, "post"))
+                    )
+                logger.info(f'在第{i}页寻找删除宣告帖')
+                for j in driver.find_elements(By.CLASS_NAME, "post"):
+                    title = j.find_element(By.CLASS_NAME, "title").text
+                    id=j.get_attribute("id")
+                    if "职员" in title and "删除宣告" in title:
+                        logger.info(f'在第{i}页找到删除宣告，id为{id}')
+                        return [i, id]
+        except:
+            logger.info(f'第{i}次尝试未找到删除宣告帖')
+    logger.warning('达到最大尝试次数，放弃寻找删除帖')
 
 
 @retry(stop=stop_after_attempt(max_attempt_number=5), reraise=True, wait=wait_fixed(0.5), after=after_log(logger, log_level=logging.WARNING))
