@@ -205,7 +205,7 @@ def normal_delete(score: int, timer: float) -> str:  # 简写正常删除文字
 
 
 def find_post(times:int=3) -> list | None:  # 寻找删除宣告帖
-    for i in range(times):
+    for j in range(times):
         try:
             logger.debug('尝试寻找删除宣告帖')
             driver.refresh()
@@ -232,7 +232,7 @@ def find_post(times:int=3) -> list | None:  # 寻找删除宣告帖
                         logger.info(f'在第{i}页找到删除宣告，id为{id}')
                         return [i, id]
         except:
-            logger.info(f'第{i}次尝试未找到删除宣告帖')
+            logger.info(f'第{j}次尝试未找到删除宣告帖')
     logger.warning('达到最大尝试次数，放弃寻找删除帖')
 
 
