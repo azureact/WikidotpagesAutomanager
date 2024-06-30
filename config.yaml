@@ -1,3 +1,14 @@
-lowest-rated-pages: "https://backrooms-wiki-cn.wikidot.com/test-lowest-rated-pages"
-bot_name: "BR_Bot"
-bot_password : 
+# Wikidot机器人用户名
+username: "Br_bot"
+# Wikidot机器人密码
+password: ""
+# 目标站点名称
+siteUnixName: "backrooms-wiki-cn"
+# 职员用户名列表
+staffs:
+  - "BR_Bot"
+  - "Lupus Caeruleus"
+# 其他站点id
+sites:
+  - "backrooms-wiki"
+  - "japan-backrooms-wiki"
