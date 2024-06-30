@@ -1,6 +1,5 @@
-selenium
-tenacity
-pyperclip
+wikidot.py
 pickle
 PyYAML
 requests
+beautifulsoup4

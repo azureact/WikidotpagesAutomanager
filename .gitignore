@@ -26,6 +26,11 @@ share/python-wheels/
 .installed.cfg
 *.egg
 MANIFEST
+config.yaml
+data.json
+deleted_pages.pkl
+old_bkr_delete.py
+logs/
 
 # PyInstaller
 #  Usually these files are written by a python script from a template
