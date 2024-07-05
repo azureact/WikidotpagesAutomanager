@@ -265,18 +265,20 @@ def get_posts(thread_id: int) -> list[dict]:
 
     return posts
 
-def get_discuss_id(url: str) -> int:
-    response = RequestUtil.request(
-        site.client,
-        "GET",
+@Retry(ifRaise=True)
+def get_discuss_id(page_id: int) -> int:
+    response = site.amc_request(
         [
-            f"{url}/norender/true/noredirect/true"
-        ],
+            {
+                "page_id": page_id,
+                "action": "ForumAction",
+                "event": "createPageDiscussionThread",
+                "moduleName": "Empty"
+            }
+        ]
     )[0]
 
-    html = BeautifulSoup(response.text, "lxml")
-    discuss = html.select_one("a#discuss-button")
-    return int(re.search(r"/t-(\d{8})", discuss.get("href")).group(1))
+    return int(response["thread_id"])
 
 def find_staff_post(posts: list[dict]) -> dict:
     for post in posts:
@@ -309,7 +311,7 @@ def check_original_pages():
             logger.info(f"页面分数为{page.rating}，不满足删除条件，跳过此页面")
             continue
         
-        discuss_id = get_discuss_id(page.get_url())
+        discuss_id = get_discuss_id(page.id)
         deletion_post = find_staff_post(get_posts(discuss_id))
         post_source = normal_delete(page.rating, current_time + expected_time)
         if deletion_post is None:
@@ -357,7 +359,7 @@ def check_translate_pages():
             logger.info("移除pending_pages中的数据")
             del pending_pages[page.id]
 
-        discuss_id = get_discuss_id(page.get_url())
+        discuss_id = get_discuss_id(page.id)
         deletion_post = find_staff_post(get_posts(discuss_id))
         post_source = translate_delete(current_time + 86400)
         if deletion_post is None:
@@ -386,7 +388,7 @@ def check_pending_pages():
     for page in pages:
         current_time = time.time()
         created_time = page.created_at.timestamp()
-        discuss_id = get_discuss_id(page.get_url())
+        discuss_id = get_discuss_id(page.id)
         deletion_post = find_staff_post(get_posts(discuss_id))
         tags = page.tags
         original = "原创" in tags
