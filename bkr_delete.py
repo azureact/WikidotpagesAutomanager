@@ -278,7 +278,7 @@ def get_discuss_id(page_id: int) -> int:
         ]
     )[0]
 
-    return int(response["thread_id"])
+    return int(response.json()["thread_id"])
 
 def find_staff_post(posts: list[dict]) -> dict:
     for post in posts:
@@ -462,13 +462,23 @@ def check_pending_pages():
             edit_tags(page.id, " ".join(page.tags).replace("待删除", ""))
             logger.info('文章分数回升，取消删除并删除页面信息')
         elif pending_pages[page.id][0] <= -10 and page.rating > -10 and original:
-            logger.info(f'将文章{page.rating}的删除宣告倒计时从24小时修改为72小时，当前分数为{page.rating}')
+            logger.info(f'将文章{page.get_url()}的删除宣告倒计时从24小时修改为72小时，当前分数为{page.rating}')
             pending_pages[page.id][0] = page.rating
             edit_post(
                 discuss_id,
                 deletion_post["id"],
                 source=normal_delete(page.rating, record_timestamp := pending_pages[page.id][1])
             )
+        elif (page.rating <= -10 
+              and pending_pages[page.id][0] > -10 
+              and pending_pages[page.id][1] - current_time > 86400 
+              and original):
+            logger.info(f'将文章{page.get_url()}的删除宣告倒计时从72小时修改为24小时，当前分数为{page.rating}')
+            pending_pages[page.id][0] = page.rating
+            edit_post(
+                discuss_id,
+                deletion_post["id"],
+                source=normal_delete(page.rating, record_timestamp := current_time + 86400))
         if current_time >= record_timestamp:
             logger.info('倒计时到期，加入生成删除宣告列表')
             pending_check_pages.append(
