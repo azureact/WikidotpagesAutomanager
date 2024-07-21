@@ -12,8 +12,8 @@ import wikidot
 from wikidot.common import exceptions
 from wikidot.util.parser import odate as odate_parser
 from wikidot.util.parser import user as user_parser
-from wikidot.util.requestutil import RequestUtil
 import yaml
+from httpx import ConnectError, ConnectTimeout
 
 
 logger = logging.getLogger(__name__)
@@ -427,7 +427,7 @@ def check_pending_pages():
                 else:
                     page_score = page.rating if page.id not in pending_pages else pending_pages[page.id][0]
             else:
-                matches = re.search(r"分数为(-?\d+)分", source.text)
+                matches = re.search(r"分数为 ?(-?\d+) ?分", source.text)
                 if matches is None:
                     logger.warning("未找到分数")
                     continue
@@ -598,6 +598,9 @@ if __name__ == "__main__":
             logger.info('主程序运行完成')
             time.sleep(1800)
             flag = 0
+        except (ConnectError, ConnectTimeout):
+            logger.error("网络错误，1分钟后重试")
+            time.sleep(60)
         except Exception as e:
             flag += 1
             exc_type, exc_value, exc_traceback_obj = sys.exc_info()
