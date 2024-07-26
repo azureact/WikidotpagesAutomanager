@@ -232,7 +232,7 @@ def get_posts(thread_id: int) -> list[dict]:
     responses = site.amc_request(
         [
             {
-                "pagerNo": no + 1,
+                "pageNo": no + 1,
                 "t": thread_id,
                 "order": "",
                 "moduleName": "forum/ForumViewThreadPostsModule",
@@ -291,7 +291,7 @@ def find_staff_post(posts: list[dict]) -> dict:
 def check_original_pages():
     pages = site.pages.search(
         category="-reserve",
-        tags="-已归档 -管理 -作者 -待删除 -重写中 -_低分删除豁免 -中心 -职员记号 -指导 -组件 -功能 议论 层级 相关人士 实体 故事 物品 房间 现象 +原创", 
+        tags="-归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -补充材料 -组件 -总览",
         rating="<5"
     )
 
