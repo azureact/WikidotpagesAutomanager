@@ -34,7 +34,7 @@ with open("deleted_pages.pkl", "rb") as file:
     pending_pages: dict[int, list] = pickle.load(file)
 logger.info(f'载入历史数据：{pending_pages}')
 
-with open("config.yaml", "r") as f:
+with open("config.yaml", "r", encoding="utf-8") as f:
     config: dict = yaml.safe_load(f)
 
 deviant: list[dict] = []
