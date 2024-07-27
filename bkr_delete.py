@@ -291,7 +291,7 @@ def find_staff_post(posts: list[dict]) -> dict:
 def check_original_pages():
     pages = site.pages.search(
         category="-reserve",
-        tags="-归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -补充材料 -组件 -总览",
+        tags="-归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -组件 -总览",
         rating="<5"
     )
 
@@ -303,7 +303,7 @@ def check_original_pages():
             logger.info("移除pending_pages中的数据")
             del pending_pages[page.id]
         
-        if current_time - created_time >= 2678400:
+        if current_time - created_time >= 2678400 and "补充材料" not in page.tags:
             expected_time = 259200
         elif page.rating <= -2:
             expected_time = 259200 if page.rating > -10 else 86400
