@@ -1,5 +1,4 @@
 wikidot.py
 pickle
 PyYAML
-requests
 beautifulsoup4
