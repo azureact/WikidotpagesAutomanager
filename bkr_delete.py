@@ -549,11 +549,10 @@ def generate_announce():
                     ),
                     "context": page.source.wiki_text,
                     "page_type": [page_type],
+                    "release_score": release_score,
                 }
             )
         else:
-            if page_type == "normal":
-                js_result[index]["release_score"] = release_score
             js_result[index]["page_type"] += [page_type]
             logger.info(f'当前页面类型为{js_result[index]["page_type"]}')
 
