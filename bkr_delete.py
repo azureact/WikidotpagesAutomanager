@@ -532,13 +532,13 @@ def generate_announce():
     for page_info in pending_check_pages:
         index = -1
         unix_name, release_score, page_type = page_info
+        page = site.page.get(unix_name)
         logger.info(f'正在生成{unix_name}的删除宣告')
         for j, value in enumerate(js_result):
-            if value["link"] == unix_name:
+            if value["link"] == page.get_url():
                 index = j
                 break
         if index == -1:
-            page = site.page.get(unix_name)
             js_result.append(
                 {
                     "link": page.get_url(),
