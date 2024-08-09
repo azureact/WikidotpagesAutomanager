@@ -29,9 +29,11 @@ file_handler.setFormatter(formatter)
 logger.addHandler(console_handler)
 logger.addHandler(file_handler)
 
-
-with open("deleted_pages.pkl", "rb") as file:
-    pending_pages: dict[int, list] = pickle.load(file)
+try:
+    with open("deleted_pages.pkl", "rb") as file:
+        pending_pages: dict[int, list] = pickle.load(file)
+except FileNotFoundError:
+    pending_pages = {}
 logger.info(f'载入历史数据：{pending_pages}')
 
 with open("config.yaml", "r", encoding="utf-8") as f:

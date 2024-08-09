@@ -1,4 +1,2 @@
-wikidot.py
-pickle
+wikidot
 PyYAML
-beautifulsoup4
