@@ -553,7 +553,8 @@ def generate_announce():
                 }
             )
         else:
-            js_result[index]["page_type"] += [page_type]
+            if page_type not in js_result[index]["page_type"]:
+                js_result[index]["page_type"] += [page_type]
             logger.info(f'当前页面类型为{js_result[index]["page_type"]}')
 
 def main():
