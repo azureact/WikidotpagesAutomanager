@@ -293,7 +293,7 @@ def find_staff_post(posts: list[dict]) -> dict:
 def check_original_pages():
     pages = site.pages.search(
         category="-reserve",
-        tags="-归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -组件 -总览",
+        tags="-归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -组件 -总览 -职员记号",
         rating="<5"
     )
 
@@ -499,7 +499,7 @@ def check_pending_pages():
                     "score": page.rating,
                     "release_score": page_score,
                     "time": 72 if page_score > -10 else 24,
-                    "discuss_link": f"https://{config["siteUnixName"]}.wikidot.com/t-{discuss_id}",
+                    "discuss_link": f"https://{config["siteUnixName"]}.wikidot.com/forum/t-{discuss_id}",
                     "post_id": deletion_post["id"],
                     "isOriginal": original,
                     "timestamp": record_timestamp,
