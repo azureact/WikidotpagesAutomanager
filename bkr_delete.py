@@ -384,7 +384,7 @@ def check_translate_pages():
 def check_pending_pages():
     pages = site.pages.search(
         category="-reserve",
-        tags="-已归档 -管理 +待删除 -重写中 -_低分删除豁免 -职员记号"
+        tags="+待删除"
     )
 
     for page in pages:
@@ -394,6 +394,10 @@ def check_pending_pages():
         deletion_post = find_staff_post(get_posts(discuss_id))
         tags = page.tags
         original = "原创" in tags
+
+        if "职员标记" in tags and original:
+            logger.info("原创文章具有职员标记，跳过判断")
+            continue
 
         if deletion_post is not None:
             source = deletion_post["source_ele"]
@@ -449,8 +453,10 @@ def check_pending_pages():
             edit_tags(page.id, " ".join(page.tags).replace("待删除", ""))
             logger.warning("未找到删除帖")
             continue
-
-        if (
+        
+        if "职员记号" in tags:
+            logger.info("检测到职员记号跳过判断")
+        elif (
             page.rating > -2 and current_time - created_time < 2678400 and original
             or page.rating >= 5
             or not original and page.rating >= 0
