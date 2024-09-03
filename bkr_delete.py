@@ -1,3 +1,4 @@
+import asyncio
 from datetime import datetime
 import json
 import logging
@@ -6,10 +7,12 @@ import re
 import sys
 import time
 import traceback
-from typing import Callable
+from typing import Any, Callable
 from bs4 import BeautifulSoup
+import httpx
 import wikidot
 from wikidot.common import exceptions
+from  wikidot.module.site import Site
 from wikidot.util.parser import odate as odate_parser
 from wikidot.util.parser import user as user_parser
 import yaml
@@ -45,6 +48,23 @@ pending_delete_pages: list[dict] = []
 pending_check_pages: list[dict] = []
 js_result: list[dict] = []
 
+
+async def single_request(site: Site, _body: dict[str, Any]):
+    amc = site.client.amc_client
+    client = httpx.AsyncClient()
+    url = (
+        f'http{"s" if site.ssl_supported else ""}://{site.unix_name}.wikidot.com/'
+        f"ajax-module-connector.php"
+    )
+    _body["wikidot_token7"] = 123456
+    return await client.post(
+        url,
+        headers=amc.header.get_header(),
+        data=_body,
+        timeout=amc.config.request_timeout,
+    )
+
+
 def Retry(retry_text: str | None = None, last_text: str | None = None, times: int = 3, ifRaise: bool = False):
     def decorator(func: Callable):
         def wrapper(*args, **kwargs):
@@ -71,15 +91,39 @@ def edit_post(thread_id: int, post_id: int, title: str | None = None, source: st
         logger.info("标题与源代码为空，放弃修改")
         return
 
-    response = site.amc_request(
-        [
+    response = asyncio.run(
+        single_request(
+            site,
             {
                 "postId": post_id,
                 "threadId": thread_id,
                 "moduleName": "forum/sub/ForumEditPostFormModule"
             }
-        ]
-    )[0]
+        )
+    )
+
+    error_dict = {
+        "threadId": thread_id,
+        "postId": post_id,
+        "title": title,
+        "source": source,
+        "errorType": "edit_post_unknown",
+    }
+    status = response.json()["status"]
+    if status == "no_permission":
+        error_dict["errorType"] = "edit_post_permission"
+        deviant.append(error_dict)
+        logger.warning("缺少编辑权限，跳过修改")
+        return
+    elif status == "ok":
+        if error_dict in deviant:
+            deviant.remove(error_dict)
+    else:
+        logger.warning(f"编辑失败，状态为{status}，准备重试")
+        if error_dict not in deviant:
+            deviant.append(error_dict)
+        raise exceptions.WikidotStatusCodeException(status_code=status)
+
     html = BeautifulSoup(response.json()["body"], "lxml")
     current_id = int(html.select(
         "form#edit-post-form>input")[1].get("value"))
@@ -108,36 +152,15 @@ def edit_post(thread_id: int, post_id: int, title: str | None = None, source: st
         ]
     )[0]
 
-    error_dict = {
-        "threadId": thread_id,
-        "postId": post_id,
-        "title": title,
-        "source": source,
-        "errorType": "edit_post_unknown",
-    }
-    status = response.json()["status"]
-    if status == "no_permission":
-        error_dict["errorType"] = "edit_post_permission"
-        deviant.append(error_dict)
-        logger.warning("缺少编辑权限，跳过修改")
-    elif status == "ok":
-        if error_dict in deviant:
-            deviant.remove(error_dict)
-    else:
-        logger.warning(f"编辑失败，状态为{status}，准备重试")
-        if error_dict not in deviant:
-            deviant.append(error_dict)
-        raise exceptions.WikidotStatusCodeException(status_code=status)
-
-
 @Retry(last_text="放弃重试，跳过创建")
 def new_post(thread_id: int, title: str = "", source: str = "", parent_id: int = ""):
     if source == "":
         logger.info("源代码为空，放弃创建")
         return
 
-    response = site.amc_request(
-        [
+    response = asyncio.run(
+        single_request(
+            site,
             {
                 "threadId": thread_id,
                 "parentId": parent_id,
@@ -147,8 +170,8 @@ def new_post(thread_id: int, title: str = "", source: str = "", parent_id: int =
                 "event": "savePost",
                 "moduleName": "Empty"
             }
-        ]
-    )[0]
+        )
+    )
 
     error_dict = {
         "threadId": thread_id,
@@ -293,8 +316,8 @@ def find_staff_post(posts: list[dict]) -> dict:
 def check_original_pages():
     pages = site.pages.search(
         category="-reserve",
-        tags="-归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -组件 -总览 -职员记号",
-        rating="<5"
+        tags="-已归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -组件 -总览 -职员记号",
+        rating="<7"
     )
 
     for page in pages:
@@ -327,9 +350,8 @@ def check_original_pages():
                       source=post_source
                       )
 
-        for error in deviant:
-            if error.get("threadId") == discuss_id and error.get("source") == post_source:
-                continue
+        if deviant != [] and deviant[-1]["postId"] == deletion_post["id"]:
+            continue
         edit_tags(page.id, " ".join(page.tags) + " 待删除")
 
 @Retry(ifRaise=True)
@@ -375,9 +397,8 @@ def check_translate_pages():
                       source=post_source
                       )
 
-        for error in deviant:
-            if error.get("threadId") == discuss_id and error.get("source") == post_source:
-                continue
+        if deviant != [] and deviant[-1]["postId"] == deletion_post["id"]:
+            continue
         edit_tags(page.id, " ".join(page.tags) + " 待删除")
 
 @Retry(ifRaise=True)
@@ -458,7 +479,7 @@ def check_pending_pages():
             logger.info("检测到职员记号跳过判断")
         elif (
             page.rating > -2 and current_time - created_time < 2678400 and original
-            or page.rating >= 5
+            or page.rating >= 7
             or not original and page.rating >= 0
         ):
             edit_post(
@@ -566,7 +587,7 @@ def generate_announce():
 def main():
     global deviant, js_result, pending_check_pages, pending_delete_pages
     deviant = [] # 错误信息
-    js_result = []  # 自删页面，低分翻译页面-30，以下页面，-30~+5页面相关信息
+    js_result = []  # 自删页面，低分翻译页面-30，以下页面，-30~+7页面相关信息
     pending_check_pages = [] # 待生成页面
     pending_delete_pages = [] # 在倒计时中的页面
     logger.info('开始为原创文章添加待删除标签')
