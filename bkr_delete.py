@@ -1,6 +1,5 @@
 import asyncio
-from datetime import datetime
-import json
+from datetime import datetime, timezone
 import logging
 import pickle
 import re
@@ -17,6 +16,7 @@ from wikidot.util.parser import odate as odate_parser
 from wikidot.util.parser import user as user_parser
 import yaml
 from httpx import ConnectError, ConnectTimeout
+from pymongo import MongoClient
 
 
 logger = logging.getLogger(__name__)
@@ -84,6 +84,8 @@ def Retry(retry_text: str | None = None, last_text: str | None = None, times: in
 
 wd = wikidot.Client(username=config["username"], password=config["password"])
 site = wd.site.get(config["siteUnixName"])
+mg = MongoClient("mongodb://administrator:XosDEf9J@mongodb.backroomer.com/")
+collection = mg["backrooms-delete"]["outputs"]
 
 @Retry(last_text="放弃重试，跳过修改")
 def edit_post(thread_id: int, post_id: int, title: str | None = None, source: str | None = None):
@@ -315,7 +317,7 @@ def find_staff_post(posts: list[dict]) -> dict:
 @Retry(ifRaise=True)
 def check_original_pages():
     pages = site.pages.search(
-        category="-reserve",
+        category="-rate -fragment -reserve",
         tags="-已归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -组件 -总览 -职员记号",
         rating="<7"
     )
@@ -350,7 +352,7 @@ def check_original_pages():
                       source=post_source
                       )
 
-        if deviant != [] and deviant[-1]["postId"] == deletion_post["id"]:
+        if deviant != [] and deviant[-1]["source"] == post_source:
             continue
         edit_tags(page.id, " ".join(page.tags) + " 待删除")
 
@@ -397,7 +399,7 @@ def check_translate_pages():
                       source=post_source
                       )
 
-        if deviant != [] and deviant[-1]["postId"] == deletion_post["id"]:
+        if deviant != [] and deviant[-1]["source"] == post_source:
             continue
         edit_tags(page.id, " ".join(page.tags) + " 待删除")
 
@@ -607,15 +609,12 @@ def main():
     generate_announce()
     logger.info('导出js文件')
     logger.debug(pending_delete_pages, js_result, deviant)
-    with open("data.json", "w") as json_file:
-        json.dump(
-            {
+    collection.insert_one({
                 "pre_delete_pages": pending_delete_pages,
                 "deleted_pages": js_result,
                 "errors": deviant,
-                "update_timestamp": time.time(),
-            },
-            json_file,
+                "update_timestamp": datetime.now(timezone.utc),
+            }
         )
 
 if __name__ == "__main__":
