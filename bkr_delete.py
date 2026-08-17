@@ -318,7 +318,7 @@ def find_staff_post(posts: list[dict]) -> dict:
 def check_original_pages():
     pages = site.pages.search(
         category="-rate -fragment -reserve",
-        tags="-已归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -组件 -总览 -职员记号",
+        tags="-已归档 -管理 -作者 -待删除 -重写中 -功能 -_低分删除豁免 原创 _test -组件后端 -组件 -总览 -职员记号 -职员标记",
         rating="<7"
     )
 
@@ -360,7 +360,7 @@ def check_original_pages():
 def check_translate_pages():
     pages = site.pages.search(
         category="-rate -fragment -reserve",
-        tags="-_低分删除豁免 -已归档 -功能 -管理 -作者 -待删除 -总览 -组件 -旧页面  -组件后端 -重定向 -重写中 -原创 -掩藏页 -职员记号", 
+        tags="-_低分删除豁免 -已归档 -功能 -管理 -作者 -待删除 -总览 -组件 -旧页面  -组件后端 -重定向 -重写中 -原创 -掩藏页 -职员记号 -职员标记", 
         rating="<0"
     )
 
@@ -407,7 +407,7 @@ def check_translate_pages():
 def check_pending_pages():
     pages = site.pages.search(
         category="-reserve",
-        tags="+待删除"
+        tags="+待删除 -职员标记 -职员记号"
     )
 
     for page in pages:
@@ -417,10 +417,6 @@ def check_pending_pages():
         deletion_post = find_staff_post(get_posts(discuss_id))
         tags = page.tags
         original = "原创" in tags
-
-        if "职员标记" in tags and original:
-            logger.info("原创文章具有职员标记，跳过判断")
-            continue
 
         if deletion_post is not None:
             source = deletion_post["source_ele"]
@@ -477,9 +473,7 @@ def check_pending_pages():
             logger.warning("未找到删除帖")
             continue
         
-        if "职员记号" in tags:
-            logger.info("检测到职员记号跳过判断")
-        elif (
+        if (
             page.rating > -2 and current_time - created_time < 2678400 and original
             or page.rating >= 7
             or not original and page.rating >= 0
@@ -544,7 +538,7 @@ def check_pending_pages():
 def check_deleted_pages():
     pages = site.pages.search(
         category="deleted",
-        tags="-已归档 -重写中 -职员记号"
+        tags="-已归档 -重写中 -职员记号 -职员标记"
     )
 
     for page in pages:
